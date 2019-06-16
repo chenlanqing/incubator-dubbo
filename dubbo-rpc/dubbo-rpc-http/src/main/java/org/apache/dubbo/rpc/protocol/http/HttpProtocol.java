@@ -17,9 +17,9 @@
 package org.apache.dubbo.rpc.protocol.http;
 
 import org.apache.dubbo.common.URL;
-import org.apache.dubbo.common.constants.RemotingConstants;
 import org.apache.dubbo.common.utils.StringUtils;
 import org.apache.dubbo.common.Version;
+import org.apache.dubbo.remoting.Constants;
 import org.apache.dubbo.remoting.http.HttpBinder;
 import org.apache.dubbo.remoting.http.HttpHandler;
 import org.apache.dubbo.remoting.http.HttpServer;
@@ -47,11 +47,11 @@ import java.net.SocketTimeoutException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.apache.dubbo.common.constants.CommonConstants.RELEASE_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.DEFAULT_TIMEOUT;
+import static org.apache.dubbo.common.constants.CommonConstants.RELEASE_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.TIMEOUT_KEY;
-import static org.apache.dubbo.common.constants.RpcConstants.DUBBO_VERSION_KEY;
-import static org.apache.dubbo.common.constants.RpcConstants.GENERIC_KEY;
+import static org.apache.dubbo.remoting.Constants.DUBBO_VERSION_KEY;
+import static org.apache.dubbo.rpc.Constants.GENERIC_KEY;
 
 /**
  * HttpProtocol
@@ -135,7 +135,7 @@ public class HttpProtocol extends AbstractProxyProtocol {
                     /*
                       The customized 'com.alibaba.dubbo.rpc.protocol.http.HttpRemoteInvocation' was firstly introduced
                       in v2.6.3. The main purpose is to support transformation of attachments in HttpProtocol, see
-                      https://github.com/apache/incubator-dubbo/pull/1827. To guarantee interoperability with lower
+                      https://github.com/apache/dubbo/pull/1827. To guarantee interoperability with lower
                       versions, we need to check if the provider is v2.6.3 or higher before sending customized
                       HttpRemoteInvocation.
                      */
@@ -159,7 +159,7 @@ public class HttpProtocol extends AbstractProxyProtocol {
 
         httpProxyFactoryBean.setServiceUrl(key);
         httpProxyFactoryBean.setServiceInterface(serviceType);
-        String client = url.getParameter(RemotingConstants.CLIENT_KEY);
+        String client = url.getParameter(Constants.CLIENT_KEY);
         if (StringUtils.isEmpty(client) || "simple".equals(client)) {
             SimpleHttpInvokerRequestExecutor httpInvokerRequestExecutor = new SimpleHttpInvokerRequestExecutor() {
                 @Override
@@ -167,14 +167,14 @@ public class HttpProtocol extends AbstractProxyProtocol {
                                                  int contentLength) throws IOException {
                     super.prepareConnection(con, contentLength);
                     con.setReadTimeout(url.getParameter(TIMEOUT_KEY, DEFAULT_TIMEOUT));
-                    con.setConnectTimeout(url.getParameter(RemotingConstants.CONNECT_TIMEOUT_KEY, RemotingConstants.DEFAULT_CONNECT_TIMEOUT));
+                    con.setConnectTimeout(url.getParameter(Constants.CONNECT_TIMEOUT_KEY, Constants.DEFAULT_CONNECT_TIMEOUT));
                 }
             };
             httpProxyFactoryBean.setHttpInvokerRequestExecutor(httpInvokerRequestExecutor);
         } else if ("commons".equals(client)) {
             HttpComponentsHttpInvokerRequestExecutor httpInvokerRequestExecutor = new HttpComponentsHttpInvokerRequestExecutor();
             httpInvokerRequestExecutor.setReadTimeout(url.getParameter(TIMEOUT_KEY, DEFAULT_TIMEOUT));
-            httpInvokerRequestExecutor.setConnectTimeout(url.getParameter(RemotingConstants.CONNECT_TIMEOUT_KEY, RemotingConstants.DEFAULT_CONNECT_TIMEOUT));
+            httpInvokerRequestExecutor.setConnectTimeout(url.getParameter(Constants.CONNECT_TIMEOUT_KEY, Constants.DEFAULT_CONNECT_TIMEOUT));
             httpProxyFactoryBean.setHttpInvokerRequestExecutor(httpInvokerRequestExecutor);
         } else {
             throw new IllegalStateException("Unsupported http protocol client " + client + ", only supported: simple, commons");
