@@ -87,16 +87,18 @@ public class AdaptiveClassCodeGenerator {
      * generate and return class code
      */
     public String generate() {
-        // no need to generate adaptive class since there's no adaptive method found.
+        // 判断type是否有 @Adaptive 注解的方法，如果没有，直接抛出异常
         if (!hasAdaptiveMethod()) {
             throw new IllegalStateException("No adaptive method exist on extension " + type.getName() + ", refuse to create the adaptive class!");
         }
-
         StringBuilder code = new StringBuilder();
+        // 生成包名
         code.append(generatePackageInfo());
+        // 生成导入信息
         code.append(generateImports());
+        // 生成类声明
         code.append(generateClassDeclaration());
-
+        // 生成方法列表：如果是未注解 Adaptive的方法，直接抛出unsupported异常
         Method[] methods = type.getMethods();
         for (Method method : methods) {
             code.append(generateMethod(method));
@@ -200,17 +202,17 @@ public class AdaptiveClassCodeGenerator {
     private String generateMethodContent(Method method) {
         Adaptive adaptiveAnnotation = method.getAnnotation(Adaptive.class);
         StringBuilder code = new StringBuilder(512);
+        // 如果没有 Adaptive 注解，生成的方法内容是抛出 UnsupportedOperationException 异常信息
         if (adaptiveAnnotation == null) {
             return generateUnsupported(method);
         } else {
+            // 获取 URL 类型参数的索引
             int urlTypeIndex = getUrlTypeIndex(method);
-
-            // found parameter in URL type
             if (urlTypeIndex != -1) {
-                // Null Point check
+                // 判断是否为空的代码
                 code.append(generateUrlNullCheck(urlTypeIndex));
             } else {
-                // did not find parameter in URL type
+                // 没有找到，直接生产URL
                 code.append(generateUrlAssignmentIndirectly(method));
             }
 
@@ -219,14 +221,13 @@ public class AdaptiveClassCodeGenerator {
             boolean hasInvocation = hasInvocationArgument(method);
 
             code.append(generateInvocationArgumentNullCheck(method));
-
+            // 从URL中获取相关参数，这里会对如果是 protocol 的特殊判断
             code.append(generateExtNameAssignment(value, hasInvocation));
-            // check extName == null?
+            // 判断上面获取的相关参数中是否为 null
             code.append(generateExtNameNullCheck(value));
-
+            // 获取真正的类来执行方法
             code.append(generateExtensionAssignment());
-
-            // return statement
+            // 返回值处理
             code.append(generateReturnAndInvocation(method));
         }
 
@@ -347,7 +348,11 @@ public class AdaptiveClassCodeGenerator {
         Class<?>[] pts = method.getParameterTypes();
 
         Map<String, Integer> getterReturnUrl = new HashMap<>();
-        // find URL getter method
+        // 1. 方法名以 get 开头，或方法名大于3个字符
+        // 2. 方法的访问权限为 public
+        // 3. 非静态方法
+        // 4. 方法参数数量为0
+        // 5. 方法返回值类型为 URL
         for (int i = 0; i < pts.length; ++i) {
             for (Method m : pts[i].getMethods()) {
                 String name = m.getName();

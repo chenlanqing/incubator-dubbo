@@ -243,6 +243,7 @@ public class ExtensionLoader<T> {
     public List<T> getActivateExtension(URL url, String[] values, String group) {
         List<T> activateExtensions = new ArrayList<>();
         List<String> names = values == null ? new ArrayList<>(0) : Arrays.asList(values);
+        // names里面不包含"-default"的value，即如果有该值，则所有的默认的 @Activate都不会被激活，只有URL参数指定的扩展点会被激活
         if (!names.contains(REMOVE_VALUE_PREFIX + DEFAULT_KEY)) {
             getExtensionClasses();
             for (Map.Entry<String, Object> entry : cachedActivates.entrySet()) {
@@ -272,6 +273,7 @@ public class ExtensionLoader<T> {
         List<T> loadedExtensions = new ArrayList<>();
         for (int i = 0; i < names.size(); i++) {
             String name = names.get(i);
+            // 如果传入的"-"符号开头的扩展点名，则该扩展点也不会被自动激活；
             if (!name.startsWith(REMOVE_VALUE_PREFIX)
                     && !names.contains(REMOVE_VALUE_PREFIX + name)) {
                 if (DEFAULT_KEY.equals(name)) {
@@ -561,11 +563,12 @@ public class ExtensionLoader<T> {
                         createAdaptiveInstanceError.toString(),
                         createAdaptiveInstanceError);
             }
-
+            // DCL
             synchronized (cachedAdaptiveInstance) {
                 instance = cachedAdaptiveInstance.get();
                 if (instance == null) {
                     try {
+                        // 创建自适应扩展，并缓存
                         instance = createAdaptiveExtension();
                         cachedAdaptiveInstance.set(instance);
                     } catch (Throwable t) {
@@ -753,7 +756,6 @@ public class ExtensionLoader<T> {
             loadDirectory(extensionClasses, strategy.directory(), type.getName(), strategy.preferExtensionClassLoader(), strategy.excludedPackages());
             loadDirectory(extensionClasses, strategy.directory(), type.getName().replace("org.apache", "com.alibaba"), strategy.preferExtensionClassLoader(), strategy.excludedPackages());
         }
-
         return extensionClasses;
     }
 
@@ -997,6 +999,13 @@ public class ExtensionLoader<T> {
     @SuppressWarnings("unchecked")
     private T createAdaptiveExtension() {
         try {
+            /*
+                主要做了三件时间：
+                1、调用 getAdaptiveExtensionClass 方法获取自适应拓展 Class 对象
+                2、通过反射进行实例化
+                3、调用 injectExtension 方法向拓展实例中注入依赖；Dubbo 中有两种类型的自适应扩展，一种是手工编码的，一种是自动生成的。
+                手工编码的自适应扩展中可能存在着一些依赖，而自动生成的 Adaptive 扩展则不会依赖其他类；这里主要是为手工编码的自适应扩展设置依赖
+             */
             return injectExtension((T) getAdaptiveExtensionClass().newInstance());
         } catch (Exception e) {
             throw new IllegalStateException("Can't create adaptive extension " + type + ", cause: " + e.getMessage(), e);
@@ -1004,15 +1013,20 @@ public class ExtensionLoader<T> {
     }
 
     private Class<?> getAdaptiveExtensionClass() {
+        // 通过 SPI 获取所有的扩展类
         getExtensionClasses();
+        // 检查缓存，如果缓存不为空，则直接返回缓存
         if (cachedAdaptiveClass != null) {
             return cachedAdaptiveClass;
         }
+        // 创建自适应扩展类
         return cachedAdaptiveClass = createAdaptiveExtensionClass();
     }
 
     private Class<?> createAdaptiveExtensionClass() {
+        // 生成自适应扩展代码：构造一个 AdaptiveClassCodeGenerator 实例，需要具体的类型以及缓存的默认扩展，调用generate方法生成自适应扩展代码
         String code = new AdaptiveClassCodeGenerator(type, cachedDefaultName).generate();
+        // 获取到对应的类加载器
         ClassLoader classLoader = findClassLoader();
         org.apache.dubbo.common.compiler.Compiler compiler = ExtensionLoader.getExtensionLoader(org.apache.dubbo.common.compiler.Compiler.class).getAdaptiveExtension();
         return compiler.compile(code, classLoader);
