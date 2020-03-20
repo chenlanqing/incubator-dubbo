@@ -34,15 +34,19 @@ public class AdaptiveExtensionFactory implements ExtensionFactory {
 
     public AdaptiveExtensionFactory() {
         ExtensionLoader<ExtensionFactory> loader = ExtensionLoader.getExtensionLoader(ExtensionFactory.class);
+        // 遍历所有的工厂名称，获取到对应的工作，并放到factories中
         List<ExtensionFactory> list = new ArrayList<ExtensionFactory>();
+        // loader.getSupportedExtensions() 返回的是 TreeSet，SPI的扩展工厂放在前面，Spring放在后面
         for (String name : loader.getSupportedExtensions()) {
             list.add(loader.getExtension(name));
         }
+        //
         factories = Collections.unmodifiableList(list);
     }
 
     @Override
     public <T> T getExtension(Class<T> type, String name) {
+        // 遍历所有工厂实现类，其顺序是SPI -> Spring
         for (ExtensionFactory factory : factories) {
             T extension = factory.getExtension(type, name);
             if (extension != null) {
