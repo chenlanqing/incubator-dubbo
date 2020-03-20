@@ -78,7 +78,7 @@ public abstract class AbstractRegistry implements Registry {
     private static final int MAX_RETRY_TIMES_SAVE_PROPERTIES = 3;
     // Log output
     protected final Logger logger = LoggerFactory.getLogger(getClass());
-    // Local disk cache, where the special key value.registries records the list of registry centers, and the others are the list of notified service providers
+    // 消费者或者服务治理中心获取到注册信息后，会保存到Properties
     private final Properties properties = new Properties();
     // File cache timing writing
     private final ExecutorService registryCacheExecutor = Executors.newFixedThreadPool(1, new NamedThreadFactory("DubboSaveRegistryCache", true));
@@ -88,9 +88,10 @@ public abstract class AbstractRegistry implements Registry {
     private final AtomicInteger savePropertiesRetryTimes = new AtomicInteger();
     private final Set<URL> registered = new ConcurrentHashSet<>();
     private final ConcurrentMap<URL, Set<NotifyListener>> subscribed = new ConcurrentHashMap<>();
+    // 内存中的服务缓存对象
     private final ConcurrentMap<URL, Map<String, List<URL>>> notified = new ConcurrentHashMap<>();
     private URL registryUrl;
-    // Local disk cache file
+    // 本地文件缓存注册信息
     private File file;
 
     public AbstractRegistry(URL url) {
@@ -209,7 +210,7 @@ public abstract class AbstractRegistry implements Registry {
             logger.warn("Failed to save registry cache file, will retry, cause: " + e.getMessage(), e);
         }
     }
-
+    // 服务初始化时，会从本地磁盘文件中把持久化的注册数据读到Properties中，并加载到内存缓存中
     private void loadProperties() {
         if (file != null && file.exists()) {
             InputStream in = null;
@@ -450,6 +451,7 @@ public abstract class AbstractRegistry implements Registry {
             }
             properties.setProperty(url.getServiceKey(), buf.toString());
             long version = lastCacheChanged.incrementAndGet();
+            // 判断是否同步保存文件
             if (syncSaveFile) {
                 doSaveProperties(version);
             } else {

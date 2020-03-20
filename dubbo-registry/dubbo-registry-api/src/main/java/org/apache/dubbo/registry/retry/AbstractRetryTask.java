@@ -34,7 +34,10 @@ import static org.apache.dubbo.registry.Constants.REGISTRY_RETRY_PERIOD_KEY;
 import static org.apache.dubbo.registry.Constants.REGISTRY_RETRY_TIMES_KEY;
 
 /**
- * AbstractRetryTask
+ * 之前的版本是在 FailbackRegistry 中有一个 ScheduledExecutorService 来调用 FailbackRegistry 中的回调方法；
+ *
+ * 这里将重试任务抽象出一个Task，实现 TimerTask，分别处理不同失败的情况
+ *
  */
 public abstract class AbstractRetryTask implements TimerTask {
 
