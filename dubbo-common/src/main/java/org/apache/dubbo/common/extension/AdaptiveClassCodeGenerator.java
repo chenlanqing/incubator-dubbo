@@ -98,7 +98,7 @@ public class AdaptiveClassCodeGenerator {
         code.append(generateImports());
         // 生成类声明
         code.append(generateClassDeclaration());
-        // 生成方法列表：如果是未注解 Adaptive的方法，直接抛出unsupported异常
+        // 生成方法列表：如果是未注解 Adaptive的方法，生成的方法内容是抛出 UnsupportedOperationException 异常信息
         Method[] methods = type.getMethods();
         for (Method method : methods) {
             code.append(generateMethod(method));
