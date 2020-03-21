@@ -31,6 +31,7 @@ import org.apache.dubbo.config.spring.ReferenceBean;
 import org.apache.dubbo.config.spring.ServiceBean;
 import org.apache.dubbo.config.spring.beans.factory.annotation.DubboConfigAliasPostProcessor;
 
+import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.beans.PropertyValue;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanDefinitionHolder;
@@ -60,6 +61,8 @@ import static org.apache.dubbo.common.constants.CommonConstants.HIDE_KEY_PREFIX;
 /**
  * AbstractBeanDefinitionParser
  *
+ * 基于xml配置的配置解析类
+ *
  * @export
  */
 public class DubboBeanDefinitionParser implements BeanDefinitionParser {
@@ -78,15 +81,31 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
         this.required = required;
     }
 
+    /**
+     *
+     * 本质是把属性注入到Spring框架的BeanDefinition，如果属性是引用对象，则dubbo默认会创建 RuntimeBeanReference类型注入，运行时又spring注入引用对象；
+     *
+     * dubbo只做属性提取的事情，运行时属性注入和转换都是Spring来处理的，Spring做数据初始化和换号参考：{@link BeanWrapperImpl}
+     *
+     * @param element xml中节点
+     * @param parserContext  解析的文本
+     * @param beanClass 对应的配置类
+     * @param required 是否必须的
+     * @return
+     */
     @SuppressWarnings("unchecked")
     private static BeanDefinition parse(Element element, ParserContext parserContext, Class<?> beanClass, boolean required) {
+        // 生成Spring的Bean定义，指定BeanClass交给Spring反射创建实例
         RootBeanDefinition beanDefinition = new RootBeanDefinition();
         beanDefinition.setBeanClass(beanClass);
         beanDefinition.setLazyInit(false);
         String id = element.getAttribute("id");
+        // 确保Spring容器没有重复的Bean定义
         if (StringUtils.isEmpty(id) && required) {
+            // 依次尝试xml配置标签的name和interface作为Bean唯一id
             String generatedBeanName = element.getAttribute("name");
             if (StringUtils.isEmpty(generatedBeanName)) {
+                // 如果协议标签没有指定name，默认使用dubbo
                 if (ProtocolConfig.class.equals(beanClass)) {
                     generatedBeanName = "dubbo";
                 } else {
@@ -98,6 +117,7 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
             }
             id = generatedBeanName;
             int counter = 2;
+            // 检查重复Bean，如果有则生成唯一id
             while (parserContext.getRegistry().containsBeanDefinition(id)) {
                 id = generatedBeanName + (counter++);
             }
@@ -106,10 +126,12 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
             if (parserContext.getRegistry().containsBeanDefinition(id)) {
                 throw new IllegalStateException("Duplicate spring bean id " + id);
             }
+            // 每次解析会向Spring注册新的BeanDefinition，后续会追加属性
             parserContext.getRegistry().registerBeanDefinition(id, beanDefinition);
             beanDefinition.getPropertyValues().addPropertyValue("id", id);
         }
         if (ProtocolConfig.class.equals(beanClass)) {
+            // 如果时候<dubbo:protocol>配置
             for (String name : parserContext.getRegistry().getBeanDefinitionNames()) {
                 BeanDefinition definition = parserContext.getRegistry().getBeanDefinition(name);
                 PropertyValue property = definition.getPropertyValues().getPropertyValue("protocol");
@@ -121,31 +143,47 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                 }
             }
         } else if (ServiceBean.class.equals(beanClass)) {
+            // 如果<dubbo:service>配置了class属性，那么为具体的class配置的类注册Bean，并注入ref属性，类似如下配置：
+            /**
+             * <dubbo:service interface="com.blue.fish.dubbo.service.UserService" class="com.blue.fish.dubbo.provider.user.UserServiceImpl"/>
+             * 这里会将赋值给 beanDefinition 的ref属性
+             */
             String className = element.getAttribute("class");
             if (StringUtils.isNotEmpty(className)) {
                 RootBeanDefinition classDefinition = new RootBeanDefinition();
                 classDefinition.setBeanClass(ReflectUtils.forName(className));
                 classDefinition.setLazyInit(false);
+                // 主要解析<dubbo:service>标签中的 name、class和ref等属性，其会把key-value的键值对提取出来放到BeanDefinition中，运行时，Spring会自动处理注入值
                 parseProperties(element.getChildNodes(), classDefinition);
                 beanDefinition.getPropertyValues().addPropertyValue("ref", new BeanDefinitionHolder(classDefinition, id + "Impl"));
             }
         } else if (ProviderConfig.class.equals(beanClass)) {
+            // <dubbo:provider>，该标签可能嵌套了 <dubbo:service> 如果使用了嵌套标签，则内部的标签对象会自动持有外层标签的对象；
             parseNested(element, parserContext, ServiceBean.class, true, "service", "provider", id, beanDefinition);
         } else if (ConsumerConfig.class.equals(beanClass)) {
+            // <dubbo:consumer>
             parseNested(element, parserContext, ReferenceBean.class, false, "reference", "consumer", id, beanDefinition);
         }
         Set<String> props = new HashSet<>();
         ManagedMap parameters = null;
+        // 获取具体配置对象的所有方法，比如ProviderConfig类
+        /**
+         * 当前标签的 attribute 获取方式“”
+         * 1、查找配置对象的get、set和is前缀的方法，如果标签属性名和方法名相同，则通过反射调用存储标签对应的值；
+         * 2、如果没有与get、set和is前缀匹配的方法，则当做parameters参数存储，是一个map对象，其定义在 AbstractMethodConfig 中；
+         */
         for (Method setter : beanClass.getMethods()) {
             String name = setter.getName();
+            // 查找所有set前缀的方法，并且只有一个参数的public方法
             if (name.length() > 3 && name.startsWith("set")
                     && Modifier.isPublic(setter.getModifiers())
                     && setter.getParameterTypes().length == 1) {
                 Class<?> type = setter.getParameterTypes()[0];
+                // 获取具体的属性，按照驼峰命名规则，比如setTimeout，那么其属性为 timeout
                 String beanProperty = name.substring(3, 4).toLowerCase() + name.substring(4);
                 String property = StringUtils.camelToSplitName(beanProperty, "-");
                 props.add(property);
-                // check the setter/getter whether match
+                // 判断setter方法和getter方法是否匹配
                 Method getter = null;
                 try {
                     getter = beanClass.getMethod("get" + name.substring(3), new Class<?>[0]);
@@ -157,23 +195,27 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                         // ApplicationAware, etc. They only have setter method, otherwise will cause the error log during application start up.
                     }
                 }
+                // 如果没有对应的getter方法或者is前缀的方法，跳过
                 if (getter == null
                         || !Modifier.isPublic(getter.getModifiers())
                         || !type.equals(getter.getReturnType())) {
                     continue;
                 }
                 if ("parameters".equals(property)) {
+                    // 如果是 parameters，按照parameter解析
                     parameters = parseParameters(element.getChildNodes(), beanDefinition);
                 } else if ("methods".equals(property)) {
                     parseMethods(id, element.getChildNodes(), beanDefinition, parserContext);
                 } else if ("arguments".equals(property)) {
                     parseArguments(id, element.getChildNodes(), beanDefinition, parserContext);
                 } else {
+                    // 直接获取标签的属性值
                     String value = element.getAttribute(property);
                     if (value != null) {
                         value = value.trim();
                         if (value.length() > 0) {
                             if ("registry".equals(property) && RegistryConfig.NO_AVAILABLE.equalsIgnoreCase(value)) {
+                                // 注册中心的配置，且配置为 N/A
                                 RegistryConfig registryConfig = new RegistryConfig();
                                 registryConfig.setAddress(RegistryConfig.NO_AVAILABLE);
                                 beanDefinition.getPropertyValues().addPropertyValue(beanProperty, registryConfig);
@@ -213,6 +255,7 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                                     }
                                     reference = new RuntimeBeanReference(value);
                                 }
+                                // 把匹配到的属性注入到Spring的bean中
                                 beanDefinition.getPropertyValues().addPropertyValue(beanProperty, reference);
                             }
                         }
@@ -220,11 +263,13 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                 }
             }
         }
+        // 剩余不匹配的attribute当做parameter注入到Bean，props中保存了所有正确解析的属性
         NamedNodeMap attributes = element.getAttributes();
         int len = attributes.getLength();
         for (int i = 0; i < len; i++) {
             Node node = attributes.item(i);
             String name = node.getLocalName();
+            // 排除已经解析的值；
             if (!props.contains(name)) {
                 if (parameters == null) {
                     parameters = new ManagedMap();
