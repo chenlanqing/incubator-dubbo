@@ -35,6 +35,8 @@ import static org.springframework.beans.factory.BeanFactoryUtils.beansOfTypeIncl
 /**
  * A {@link ApplicationListener listener} for the {@link Lifecycle Dubbo Lifecycle} components
  *
+ * Dubbo的生命周期时间监听器
+ *
  * @see {@link Lifecycle Dubbo Lifecycle}
  * @see SmartApplicationListener
  * @since 2.7.5

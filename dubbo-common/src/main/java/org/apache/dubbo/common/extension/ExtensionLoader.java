@@ -969,9 +969,7 @@ public class ExtensionLoader<T> {
     }
 
     /**
-     * test if clazz is a wrapper class
-     * <p>
-     * which has Constructor with given class type as its only argument
+     * 判断一类是否为包装类：判断类的构造参数是否包含对应的type类型参数
      */
     private boolean isWrapperClass(Class<?> clazz) {
         try {

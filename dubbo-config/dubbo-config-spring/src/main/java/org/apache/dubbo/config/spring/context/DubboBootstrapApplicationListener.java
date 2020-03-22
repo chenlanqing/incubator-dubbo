@@ -28,6 +28,8 @@ import org.springframework.core.Ordered;
  * The {@link ApplicationListener} for {@link DubboBootstrap}'s lifecycle when the {@link ContextRefreshedEvent}
  * and {@link ContextClosedEvent} raised
  *
+ * Dubbo启动器监听器，其 onApplicationContextEvent 会调用 {@link DubboBootstrap} 的 start 或者 stop 方法；
+ *
  * @since 2.7.5
  */
 public class DubboBootstrapApplicationListener extends OneTimeExecutionApplicationContextEventListener

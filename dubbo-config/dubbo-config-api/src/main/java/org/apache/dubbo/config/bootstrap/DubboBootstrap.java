@@ -500,7 +500,7 @@ public class DubboBootstrap extends GenericEventListener {
         if (!initialized.compareAndSet(false, true)) {
             return;
         }
-
+        // Lifecycle 生命周期相关
         ApplicationModel.initFrameworkExts();
 
         startConfigCenter();
@@ -735,12 +735,14 @@ public class DubboBootstrap extends GenericEventListener {
      * Start the bootstrap
      */
     public DubboBootstrap start() {
+        // CAS 操作
         if (started.compareAndSet(false, true)) {
+            // 初始化参数
             initialize();
             if (logger.isInfoEnabled()) {
                 logger.info(NAME + " is starting...");
             }
-            // 1. export Dubbo Services
+            // 1. 暴露服务
             exportServices();
 
             // Not only provider register
@@ -905,7 +907,7 @@ public class DubboBootstrap extends GenericEventListener {
             // TODO, compatible with ServiceConfig.export()
             ServiceConfig serviceConfig = (ServiceConfig) sc;
             serviceConfig.setBootstrap(this);
-
+            // 是否异步操作
             if (exportAsync) {
                 ExecutorService executor = executorRepository.getServiceExporterExecutor();
                 Future<?> future = executor.submit(() -> {

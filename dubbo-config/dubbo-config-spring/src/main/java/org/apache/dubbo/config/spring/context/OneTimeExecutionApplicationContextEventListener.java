@@ -29,6 +29,8 @@ import java.util.Objects;
  * The abstract class {@link ApplicationListener} for {@link ApplicationContextEvent} guarantees just one-time execution
  * and prevents the event propagation in the hierarchical {@link ApplicationContext ApplicationContexts}
  *
+ * 抽象出来的一次执行应用上下文时间监听器，其有两个实现类
+ *
  * @since 2.7.5
  */
 abstract class OneTimeExecutionApplicationContextEventListener implements ApplicationListener, ApplicationContextAware {

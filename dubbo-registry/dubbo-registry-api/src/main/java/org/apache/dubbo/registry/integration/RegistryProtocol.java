@@ -169,7 +169,9 @@ public class RegistryProtocol implements Protocol {
     }
 
     public void register(URL registryUrl, URL registeredProviderUrl) {
+        // 获取 Registry
         Registry registry = registryFactory.getRegistry(registryUrl);
+        // 注册服务，比如如果使用的是 zookeeper作为注册中心，那么这里 register方法是 FallBackRegistry，ZookeeperRegistry 继承该类
         registry.register(registeredProviderUrl);
 
         ProviderModel model = ApplicationModel.getProviderModel(registeredProviderUrl.getServiceKey());
@@ -180,8 +182,21 @@ public class RegistryProtocol implements Protocol {
         ));
     }
 
+    /**
+     * 1、调用 doLocalExport 导出服务
+     * 2、向注册中心注册服务
+     * 3、向注册中心进行订阅 override 数据
+     * 4、创建并返回 DestroyableExporter
+     *
+     * @param originInvoker
+     * @param <T>
+     * @return
+     * @throws RpcException
+     */
     @Override
     public <T> Exporter<T> export(final Invoker<T> originInvoker) throws RpcException {
+        // 获取注册中心 URL，以 zookeeper 注册中心为例，得到的示例 URL 如下：
+        // zookeeper://127.0.0.1:2181/com.alibaba.dubbo.registry.RegistryService?application=demo-provider&dubbo=2.0.2&export=dubbo%3A%2F%2F172.17.48.52%3A20880%2Fcom.alibaba.dubbo.demo.DemoService%3Fanyhost%3Dtrue%26application%3Ddemo-provider
         URL registryUrl = getRegistryUrl(originInvoker);
         // url to export locally
         URL providerUrl = getProviderUrl(originInvoker);
@@ -195,15 +210,19 @@ public class RegistryProtocol implements Protocol {
         overrideListeners.put(overrideSubscribeUrl, overrideSubscribeListener);
 
         providerUrl = overrideUrlWithConfig(providerUrl, overrideSubscribeListener);
-        //export invoker
+
+        // 导出服务
         final ExporterChangeableWrapper<T> exporter = doLocalExport(originInvoker, providerUrl);
 
-        // url to registry
+        // url to registry 创建注册中心实例
         final Registry registry = getRegistry(originInvoker);
+        // 获取已注册的服务提供者 URL，比如：
+        // dubbo://172.17.48.52:20880/com.alibaba.dubbo.demo.DemoService?anyhost=true&application=demo-provider&dubbo=2.0.2&generic=false&interface=com.alibaba.dubbo.demo.DemoService&methods=sayHello
         final URL registeredProviderUrl = getUrlToRegistry(providerUrl, registryUrl);
         // decide if we need to delay publish
         boolean register = providerUrl.getParameter(REGISTER_KEY, true);
         if (register) {
+            // 服务暴露之后，注册元数据
             register(registryUrl, registeredProviderUrl);
         }
 
@@ -215,6 +234,7 @@ public class RegistryProtocol implements Protocol {
 
         notifyExport(exporter);
         //Ensure that a new exporter instance is returned every time export
+        // 每次暴露服务都会返回一个新的Exporter实例
         return new DestroyableExporter<>(exporter);
     }
 
@@ -239,6 +259,14 @@ public class RegistryProtocol implements Protocol {
     private <T> ExporterChangeableWrapper<T> doLocalExport(final Invoker<T> originInvoker, URL providerUrl) {
         String key = getCacheKey(originInvoker);
 
+//        Invoker<?> invokerDelegate = new InvokerDelegate<>(originInvoker, providerUrl);
+//        Exporter<T> export = (Exporter<T>) protocol.export(invokerDelegate);
+//        ExporterChangeableWrapper<T> changeableWrapper = new ExporterChangeableWrapper<>(export, originInvoker);
+//        return (ExporterChangeableWrapper<T>) bounds.computeIfAbsent(key, s -> changeableWrapper);
+
+        // 等于上面四句
+        // 这里protocol调用的时候也有包装，假设使用的是dubbo协议，那么这里完整调用链是：
+        // QosProtocolWrapper.export -> ProtocolListenerWrapper.export -> ProtocolFilterWrapper.export -> DubboProtocol.export
         return (ExporterChangeableWrapper<T>) bounds.computeIfAbsent(key, s -> {
             Invoker<?> invokerDelegate = new InvokerDelegate<>(originInvoker, providerUrl);
             return new ExporterChangeableWrapper<>((Exporter<T>) protocol.export(invokerDelegate), originInvoker);
@@ -551,6 +579,7 @@ public class RegistryProtocol implements Protocol {
 
         @Override
         public void unexport() {
+            // // Invoker销毁时注销端口和map中服务等实例资源
             exporter.unexport();
         }
     }
