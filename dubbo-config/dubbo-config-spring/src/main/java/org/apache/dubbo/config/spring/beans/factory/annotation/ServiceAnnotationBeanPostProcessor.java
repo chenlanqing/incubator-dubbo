@@ -109,12 +109,13 @@ public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistr
     @Override
     public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) throws BeansException {
 
-        // @since 2.7.5
+        // 注释Dubbo启动应用监听器
         registerBeans(registry, DubboBootstrapApplicationListener.class);
-
+        // 获取用户注解配置的包扫描
         Set<String> resolvedPackagesToScan = resolvePackagesToScan(packagesToScan);
 
         if (!CollectionUtils.isEmpty(resolvedPackagesToScan)) {
+            // 触发serviceBean的定义与注入
             registerServiceBeans(resolvedPackagesToScan, registry);
         } else {
             if (logger.isWarnEnabled()) {
@@ -140,6 +141,7 @@ public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistr
 
         scanner.setBeanNameGenerator(beanNameGenerator);
 
+        // 指定扫描Dubbo的注解@Service，不会扫描Spring的Service注解，AnnotationTypeFilter是一个注解过滤器
         scanner.addIncludeFilter(new AnnotationTypeFilter(Service.class));
 
         /**
@@ -152,7 +154,7 @@ public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistr
 
         for (String packageToScan : packagesToScan) {
 
-            // Registers @Service Bean first
+            // 将@Service作为不同Bean注入容器
             scanner.scan(packageToScan);
 
             // Finds all BeanDefinitionHolders of @Service whether @ComponentScan scans or not.
@@ -162,6 +164,7 @@ public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistr
             if (!CollectionUtils.isEmpty(beanDefinitionHolders)) {
 
                 for (BeanDefinitionHolder beanDefinitionHolder : beanDefinitionHolders) {
+                    // 注册ServiceBean定义并做数据绑定和解析
                     registerServiceBean(beanDefinitionHolder, registry, scanner);
                 }
 
