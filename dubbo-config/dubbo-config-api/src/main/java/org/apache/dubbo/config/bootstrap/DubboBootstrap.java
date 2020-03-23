@@ -903,6 +903,7 @@ public class DubboBootstrap extends GenericEventListener {
     }
 
     private void exportServices() {
+        // configManager.getServices() 获取所有的服务，依次暴露
         configManager.getServices().forEach(sc -> {
             // TODO, compatible with ServiceConfig.export()
             ServiceConfig serviceConfig = (ServiceConfig) sc;
