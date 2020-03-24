@@ -163,44 +163,62 @@ public class DubboCodec extends ExchangeCodec {
         encodeResponseData(channel, out, data, DUBBO_VERSION);
     }
 
+    /**
+     * 主要是将dubbo方法调用参数和值编码成字节流
+     *
+     * @param channel
+     * @param out
+     * @param data
+     * @param version
+     * @throws IOException
+     */
     @Override
     protected void encodeRequestData(Channel channel, ObjectOutput out, Object data, String version) throws IOException {
         RpcInvocation inv = (RpcInvocation) data;
-
+        // 写入框架版本
         out.writeUTF(version);
+        // 写入调用接口
         out.writeUTF(inv.getAttachment(PATH_KEY));
+        // 写入调用接口指定的版本，默认是0.0.0
         out.writeUTF(inv.getAttachment(VERSION_KEY));
-
+        // 写入方法名称
         out.writeUTF(inv.getMethodName());
+        // 写入参数类型
         out.writeUTF(inv.getParameterTypesDesc());
         Object[] args = inv.getArguments();
+        // 获取参数后依次写入参数
         if (args != null) {
             for (int i = 0; i < args.length; i++) {
                 out.writeObject(encodeInvocationArgument(channel, inv, i));
             }
         }
+        // 写入隐式参数
         out.writeAttachments(inv.getObjectAttachments());
     }
 
     @Override
     protected void encodeResponseData(Channel channel, ObjectOutput out, Object data, String version) throws IOException {
         Result result = (Result) data;
-        // currently, the version value in Response records the version of Request
+        // 判断客户端请求的版本是否支持服务端参数返回
         boolean attach = Version.isSupportResponseAttachment(version);
         Throwable th = result.getException();
         if (th == null) {
+            // 获取正常返回结果
             Object ret = result.getValue();
             if (ret == null) {
+                // 在编码结果前，先写一个字节标志
                 out.writeByte(attach ? RESPONSE_NULL_VALUE_WITH_ATTACHMENTS : RESPONSE_NULL_VALUE);
             } else {
                 out.writeByte(attach ? RESPONSE_VALUE_WITH_ATTACHMENTS : RESPONSE_VALUE);
+                // 写调用结果
                 out.writeObject(ret);
             }
         } else {
+            // 标记调用异常，并序列化异常
             out.writeByte(attach ? RESPONSE_WITH_EXCEPTION_WITH_ATTACHMENTS : RESPONSE_WITH_EXCEPTION);
             out.writeThrowable(th);
         }
-
+        // 记录服务端dubbo版本，并返回客户端的隐式参数
         if (attach) {
             // returns current version of Response to consumer side.
             result.getObjectAttachments().put(DUBBO_VERSION_KEY, Version.getProtocolVersion());
