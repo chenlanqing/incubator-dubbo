@@ -130,28 +130,25 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
      */
     protected Invoker<T> select(LoadBalance loadbalance, Invocation invocation,
                                 List<Invoker<T>> invokers, List<Invoker<T>> selected) throws RpcException {
-
         if (CollectionUtils.isEmpty(invokers)) {
             return null;
         }
         String methodName = invocation == null ? StringUtils.EMPTY_STRING : invocation.getMethodName();
-
+        // 判断是否是粘滞连接
         boolean sticky = invokers.get(0).getUrl()
                 .getMethodParameter(methodName, CLUSTER_STICKY_KEY, DEFAULT_CLUSTER_STICKY);
-
-        //ignore overloaded method
+        // 如果有粘滞的Invoker 且当前的 Invoker 列表不包含该粘滞的 Invoker，将之前设置的粘滞的 Invoker 置为 null
         if (stickyInvoker != null && !invokers.contains(stickyInvoker)) {
             stickyInvoker = null;
         }
-        //ignore concurrency problem
+        // 如果是支持粘滞连接，（粘滞的Invoker不为null，或者 选择的 Invokers 不包含 粘滞的Invoker）
         if (sticky && stickyInvoker != null && (selected == null || !selected.contains(stickyInvoker))) {
+            // 可用性检查且粘滞的Invoker可用，直接返回
             if (availablecheck && stickyInvoker.isAvailable()) {
                 return stickyInvoker;
             }
         }
-
         Invoker<T> invoker = doSelect(loadbalance, invocation, invokers, selected);
-
         if (sticky) {
             stickyInvoker = invoker;
         }
@@ -173,6 +170,7 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
         if ((selected != null && selected.contains(invoker))
                 || (!invoker.isAvailable() && getUrl() != null && availablecheck)) {
             try {
+                // 重新做负载均衡
                 Invoker<T> rInvoker = reselect(loadbalance, invocation, invokers, selected, availablecheck);
                 if (rInvoker != null) {
                     invoker = rInvoker;

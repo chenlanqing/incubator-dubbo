@@ -36,7 +36,11 @@ public class RandomLoadBalance extends AbstractLoadBalance {
     public static final String NAME = "random";
 
     /**
-     * Select one invoker between a list using a random criteria
+     * 按照权重设置随机概率做负载均衡，计算步骤：
+     * 1、计算总权重并判断每个 Invoker 的权重是否一样，遍历整个 Invoker 列表，求和总权重。在遍历过程中，会对比每个 Invoker 的权重，判断所有 Invoker 的权重是否相同；
+     * 2、如果权重相同，则说明每个 Invoker 的概率都一样，那么直接用 nextInt 随机选一个 Invoker 返回即可；
+     * 3、如果权重不同，则首先得到偏移值，然后根据偏移值找到对应的 Invoker
+     *
      * @param invokers List of possible invokers
      * @param url URL
      * @param invocation Invocation
@@ -77,7 +81,7 @@ public class RandomLoadBalance extends AbstractLoadBalance {
                 }
             }
         }
-        // If all invokers have the same weight value or totalWeight=0, return evenly.
+        // 如果所有权重都相同 或者 总权重等于 0，随机返回一个
         return invokers.get(ThreadLocalRandom.current().nextInt(length));
     }
 

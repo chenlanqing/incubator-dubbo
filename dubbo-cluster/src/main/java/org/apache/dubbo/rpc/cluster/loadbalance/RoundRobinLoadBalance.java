@@ -37,8 +37,11 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
     private static final int RECYCLE_PERIOD = 60000;
     
     protected static class WeightedRoundRobin {
+        // 对象设置的权重
         private int weight;
+        // 表示该节点被所有线程选中的权重综合
         private AtomicLong current = new AtomicLong(0);
+        // 最后一次更新的时间，用于后续缓存超时的判断
         private long lastUpdate;
         public int getWeight() {
             return weight;
@@ -84,7 +87,9 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
     
     @Override
     protected <T> Invoker<T> doSelect(List<Invoker<T>> invokers, URL url, Invocation invocation) {
+        // key是URL的serviceKey + 方法名
         String key = invokers.get(0).getUrl().getServiceKey() + "." + invocation.getMethodName();
+        // 初始化权重缓存map
         ConcurrentMap<String, WeightedRoundRobin> map = methodWeightMap.computeIfAbsent(key, k -> new ConcurrentHashMap<>());
         int totalWeight = 0;
         long maxCurrent = Long.MIN_VALUE;
@@ -97,13 +102,14 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
             WeightedRoundRobin weightedRoundRobin = map.get(identifyString);
 
             if (weightedRoundRobin == null) {
+                // 没有权重信息生成权重信息
                 weightedRoundRobin = new WeightedRoundRobin();
                 weightedRoundRobin.setWeight(weight);
                 map.putIfAbsent(identifyString, weightedRoundRobin);
                 weightedRoundRobin = map.get(identifyString);
             }
             if (weight != weightedRoundRobin.getWeight()) {
-                //weight changed
+                // 权重已经变化
                 weightedRoundRobin.setWeight(weight);
             }
             long cur = weightedRoundRobin.increaseCurrent();

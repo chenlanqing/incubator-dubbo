@@ -38,7 +38,7 @@ public class LeastActiveLoadBalance extends AbstractLoadBalance {
 
     @Override
     protected <T> Invoker<T> doSelect(List<Invoker<T>> invokers, URL url, Invocation invocation) {
-        // Number of invokers
+        // Invoker的数量
         int length = invokers.size();
         // The least active value of all invokers
         int leastActive = -1;
@@ -55,8 +55,7 @@ public class LeastActiveLoadBalance extends AbstractLoadBalance {
         // Every least active invoker has the same weight value?
         boolean sameWeight = true;
 
-
-        // Filter out all the least active invokers
+        //遍历所有Invoker，不断寻找最小的活跃数，如果有多个Invoker的活跃数都等于 leastActive，则把他们保存到同一个集合中，最后在这个Invoker中随机选择一个Invoker
         for (int i = 0; i < length; i++) {
             Invoker<T> invoker = invokers.get(i);
             // Get the active number of the invoker
@@ -81,6 +80,7 @@ public class LeastActiveLoadBalance extends AbstractLoadBalance {
                 sameWeight = true;
                 // If current invoker's active value equals with leaseActive, then accumulating.
             } else if (active == leastActive) {
+                // 当前 Invoker的活跃数与技术相同，说明有N个Invoker都是最小技术，全部保存到集合中，后续就在里面根据权重选择一个节点
                 // Record the index of the least active invoker in leastIndexes order
                 leastIndexes[leastCount++] = i;
                 // Accumulate the total weight of the least active invoker
@@ -92,11 +92,12 @@ public class LeastActiveLoadBalance extends AbstractLoadBalance {
                 }
             }
         }
-        // Choose an invoker from all the least active invokers
+        // 如果只有一个Invoker，直接返回
         if (leastCount == 1) {
             // If we got exactly one invoker having the least active value, return this invoker directly.
             return invokers.get(leastIndexes[0]);
         }
+        // 如果权重不一样，则使用和Random负载均衡一样的权重算法找到一个 Invoker 返回
         if (!sameWeight && totalWeight > 0) {
             // If (not every invoker has the same weight & at least one invoker's weight>0), select randomly based on 
             // totalWeight.
@@ -111,6 +112,7 @@ public class LeastActiveLoadBalance extends AbstractLoadBalance {
             }
         }
         // If all invokers have the same weight value or totalWeight=0, return evenly.
+        // 如果权重相同，则直接随机选择一个返回
         return invokers.get(leastIndexes[ThreadLocalRandom.current().nextInt(leastCount)]);
     }
 }

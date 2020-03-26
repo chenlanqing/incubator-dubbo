@@ -40,6 +40,8 @@ public abstract class AbstractLoadBalance implements LoadBalance {
      * Calculate the weight according to the uptime proportion of warmup time
      * the new weight will be within 1(inclusive) to weight(inclusive)
      *
+     * 预热过程：计算权重
+     *
      * @param uptime the uptime in milliseconds
      * @param warmup the warmup time in milliseconds
      * @param weight the weight of an invoker
@@ -55,9 +57,11 @@ public abstract class AbstractLoadBalance implements LoadBalance {
         if (CollectionUtils.isEmpty(invokers)) {
             return null;
         }
+        // 如果只有一个节点，不需要直接返回该节点
         if (invokers.size() == 1) {
             return invokers.get(0);
         }
+        // doSelect 是一个模板方法，由具体的子类来实现
         return doSelect(invokers, url, invocation);
     }
 
